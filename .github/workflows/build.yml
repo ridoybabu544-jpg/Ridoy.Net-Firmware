@@ -44,10 +44,13 @@ jobs:
 
       - name: Collect firmware images
         if: always()
+        shell: bash
         run: |
           mkdir -p output
           if [ -d source/trunk/images ]; then
-            find source/trunk/images -maxdepth 2 -type f -exec cp -v {} output/ \\;
+            find source/trunk/images -maxdepth 2 -type f -print0 | while IFS= read -r -d '' file; do
+              cp -v "$file" output/
+            done
           fi
           ls -lah output
 
