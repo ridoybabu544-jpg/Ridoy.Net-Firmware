@@ -41,7 +41,7 @@ jobs:
                   found_copy = True
           if not (found_url and found_copy):
               raise SystemExit('Expected branding markers not found; refusing to modify source')
-          p.write_text('\\n'.join(lines) + '\\n')
+          p.write_text('\n'.join(lines) + '\n')
           print('Ridoy.Net web footer and project URL branding applied')
           PY
 
