@@ -13,14 +13,14 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 360
     steps:
-      - name: Checkout firmware project
+      - name: Checkout project configuration
         uses: actions/checkout@v4
 
-      - name: Checkout firmware source
+      - name: Checkout firmware source branch
         uses: actions/checkout@v4
         with:
-          repository: ridoybabu544-jpg/Ridoy.Net
-          ref: main
+          repository: ridoybabu544-jpg/Ridoy.Net-Firmware
+          ref: source
           path: source
 
       - name: Install build dependencies
@@ -47,7 +47,7 @@ jobs:
         run: |
           mkdir -p output
           if [ -d source/trunk/images ]; then
-            find source/trunk/images -maxdepth 2 -type f -exec cp -v {} output/ \;
+            find source/trunk/images -maxdepth 2 -type f -exec cp -v {} output/ \\;
           fi
           ls -lah output
 
