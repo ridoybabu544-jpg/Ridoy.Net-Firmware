@@ -78,13 +78,62 @@ jobs:
               digest = hashlib.sha256(image.read_bytes()).hexdigest()
               lines.append(f"{digest}  {image.name}")
               print(f"OK: {image.name}: {size} bytes <= {max_size} bytes")
-          (output / "SHA256SUMS.txt").write_text("\\n".join(lines) + "\\n")
+          (output / "SHA256SUMS.txt").write_text("\n".join(lines) + "\n")
           (output / "BUILD-CHECK.txt").write_text(
-              "Target: TP-Link TL-WR845N V4 (UN)\\n"
-              "Expected TP-Link HWID: 0x08450004\\n"
-              "Firmware partition: offset 0x10000, size 0x3C0000\\n"
-              "Check: image size only; this does NOT certify cross-firmware upgrade compatibility.\\n"
+              "Target: TP-Link TL-WR845N V4 (UN)\n"
+              "Expected TP-Link HWID: 0x08450004\n"
+              "Firmware partition: offset 0x10000, size 0x3C0000\n"
+              "Check: image size only; this does NOT certify cross-firmware upgrade compatibility.\n"
           )
+          PY
+
+      - name: Create experimental TFTP recovery image
+        if: success()
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          import sys
+
+          out = Path("output")
+          candidates = sorted(
+              p for p in out.glob("TL_WR845N-V4*.bin")
+              if p.is_file() and p.name != "tp_recovery.bin"
+          )
+          if len(candidates) != 1:
+              sys.exit(f"ERROR: expected exactly one TL_WR845N-V4 firmware .bin, found {len(candidates)}")
+
+          source = candidates[0]
+          payload = source.read_bytes()
+          # Community-documented TL-WR845N V4 TFTP packaging: prepend 0x10000 zero bytes.
+          # This creates a test artifact only; it does not prove bootloader acceptance.
+          recovery = bytes(0x10000) + payload
+          limit = 0x3D0000  # end of the firmware region, before Storage partition
+          if len(recovery) > limit:
+              sys.exit(f"ERROR: recovery image {len(recovery)} bytes exceeds {limit}-byte TFTP region limit")
+
+          target = out / "tp_recovery.bin"
+          target.write_bytes(recovery)
+          check = target.read_bytes()
+          if check[:0x10000] != bytes(0x10000) or check[0x10000:] != payload:
+              sys.exit("ERROR: recovery image byte-for-byte validation failed")
+
+          digest = hashlib.sha256(check).hexdigest()
+          with (out / "SHA256SUMS.txt").open("a") as f:
+              f.write(f"{digest}  tp_recovery.bin\n")
+          (out / "RECOVERY-CHECK.txt").write_text(
+              "File: tp_recovery.bin\n"
+              "Target: TP-Link TL-WR845N V4 (UN)\n"
+              "Packaging: 0x10000 zero-byte prefix + standard firmware image\n"
+              f"Source: {source.name}\n"
+              f"Size: {len(check)} bytes\n"
+              f"SHA-256: {digest}\n"
+              "Validation: prefix and payload byte comparison passed; size limit passed.\n"
+              "WARNING: packaging validation only. TFTP bootloader acceptance and on-device recovery have NOT been tested. Do not flash until independently verified.\n"
+          )
+          print(f"OK: created {target} ({len(check)} bytes)")
+          print(f"SHA-256: {digest}")
           PY
 
       - name: Upload firmware artifacts
