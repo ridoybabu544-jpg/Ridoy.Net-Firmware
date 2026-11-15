@@ -54,8 +54,41 @@ jobs:
           fi
           ls -lah output
 
+      - name: Validate firmware image size and create checksums
+        if: success()
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          import sys
+
+          output = Path("output")
+          images = sorted(p for p in output.glob("*.bin") if p.is_file())
+          if not images:
+              sys.exit("ERROR: no .bin firmware image found")
+
+          # TL-WR845N V4 board partition: offset 0x10000, size 0x3C0000.
+          max_size = 0x3C0000
+          lines = []
+          for image in images:
+              size = image.stat().st_size
+              if size <= 0 or size > max_size:
+                  sys.exit(f"ERROR: {image.name} size {size} exceeds firmware partition limit {max_size}")
+              digest = hashlib.sha256(image.read_bytes()).hexdigest()
+              lines.append(f"{digest}  {image.name}")
+              print(f"OK: {image.name}: {size} bytes <= {max_size} bytes")
+          (output / "SHA256SUMS.txt").write_text("\\n".join(lines) + "\\n")
+          (output / "BUILD-CHECK.txt").write_text(
+              "Target: TP-Link TL-WR845N V4 (UN)\\n"
+              "Expected TP-Link HWID: 0x08450004\\n"
+              "Firmware partition: offset 0x10000, size 0x3C0000\\n"
+              "Check: image size only; this does NOT certify cross-firmware upgrade compatibility.\\n"
+          )
+          PY
+
       - name: Upload firmware artifacts
-        if: always()
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: Ridoy-Net-TL-WR845N-V4
