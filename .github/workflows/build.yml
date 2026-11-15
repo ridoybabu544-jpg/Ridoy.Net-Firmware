@@ -136,6 +136,46 @@ jobs:
           print(f"SHA-256: {digest}")
           PY
 
+      - name: Create TFTP recovery candidate (stripped TP-Link header)
+        if: success()
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          import sys
+
+          output = Path("output")
+          images = sorted(p for p in output.glob("*.bin") if p.is_file() and p.name != "tp_recovery.bin")
+          if len(images) != 1:
+              sys.exit(f"ERROR: expected exactly one primary firmware image, found {len(images)}")
+          source = images[0]
+          data = source.read_bytes()
+          if len(data) <= 512:
+              sys.exit("ERROR: image is too small to contain a TP-Link 512-byte header")
+          # TP-Link TFTP recovery commonly consumes the firmware payload without
+          # the 512-byte vendor header. This is a candidate, not device-validated.
+          recovery = data[512:]
+          max_size = 0x3C0000
+          if len(recovery) <= 0 or len(recovery) > max_size:
+              sys.exit(f"ERROR: recovery payload size {len(recovery)} exceeds partition limit {max_size}")
+          target = output / "tp_recovery.bin"
+          target.write_bytes(recovery)
+          digest = hashlib.sha256(recovery).hexdigest()
+          with (output / "SHA256SUMS.txt").open("a") as f:
+              f.write(f"{digest}  {target.name}\\n")
+          (output / "RECOVERY-CHECK.txt").write_text(
+              f"Source image: {source.name}\\n"
+              f"Recovery candidate: {target.name}\\n"
+              f"Method: removed first 512 bytes (TP-Link vendor header)\\n"
+              f"Payload size: {len(recovery)} bytes\\n"
+              f"SHA-256: {digest}\\n"
+              "Status: generated and size-checked only. TFTP filename/IP/bootloader acceptance and actual recovery are NOT verified on hardware.\\n"
+              "Do not flash until the exact TL-WR845N V4 UN recovery procedure and image format are confirmed.\\n"
+          )
+          print(f"Created candidate {target}: {len(recovery)} bytes; SHA-256 {digest}")
+          PY
+
       - name: Upload firmware artifacts
         if: success()
         uses: actions/upload-artifact@v4
