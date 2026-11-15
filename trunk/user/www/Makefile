@@ -6,8 +6,8 @@ ROMFS_DIR = $(ROOTDIR)/romfs
 
 include $(ROOTDIR)/user/shared/boards.mk
 
-PROJECT_HOME_URL="https:\/\/github.com\/OpenPadavan\/padavan"
-LABEL_COPYRIGHT_TEXT="© 2011-`date +'%Y'` Padavan \& N56U Project Community. Firmware Compilation Time: `date +'%d.%m.%Y %H:%M:%S'`"
+PROJECT_HOME_URL="https:\/\/github.com\/ridoybabu544-jpg\/Ridoy.Net-Firmware"
+LABEL_COPYRIGHT_TEXT="Ridoy.Net Firmware. Personal build. Compilation Time: `date +'%d.%m.%Y %H:%M:%S'`"
 
 BOARD_PATTERN=s/ZVMODELVZ/$(CONFIG_FIRMWARE_PRODUCT_ID)/g
 COPYR_PATTERN=s/ZVCOPYRVZ/$(LABEL_COPYRIGHT_TEXT)/g
@@ -90,7 +90,7 @@ ifeq ($(CONFIG_FIRMWARE_INCLUDE_LANG_UK),y)
 	cp dict/UK.dict $(ROMFS_DIR)/www
 endif
 	cat $(ROMFS_DIR)/www/EN.header dict/EN.footer > $(ROMFS_DIR)/www/EN.dict
-	sed -i 's/^Web_Title=.*/Web_Title=ZVMODELVZ Wireless Router/' $(ROMFS_DIR)/www/*.dict
+	sed -i 's/^Web_Title=.*/Web_Title=Ridoy.Net Router/' $(ROMFS_DIR)/www/*.dict
 	sed $(BOARD_PATTERN) -i $(ROMFS_DIR)/www/*.dict
 	sed $(COPYR_PATTERN) -i $(ROMFS_DIR)/www/*.dict
 	sed $(DWURL_PATTERN) -i $(ROMFS_DIR)/www/*.dict
@@ -122,7 +122,6 @@ ifeq ($(BOARD_HAS_5G_RADIO),0)
 	rm -f $(INSTALLDIR)/www/Main_WStatus_Content.asp
 	rm -f $(INSTALLDIR)/www/wireless.js
 	rm -f $(INSTALLDIR)/www/wds_aplist.asp
-	rm -f $(INSTALLDIR)/www/device-map/router.asp
 endif
 ifndef CONFIG_IPV6
 	rm -f $(INSTALLDIR)/www/Advanced_IPv6_Content.asp
