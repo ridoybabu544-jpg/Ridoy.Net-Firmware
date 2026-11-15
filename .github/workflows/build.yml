@@ -23,6 +23,28 @@ jobs:
           ref: source
           path: source
 
+      - name: Apply Ridoy.Net web branding
+        working-directory: source/trunk/user/www
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('Makefile')
+          lines = p.read_text().splitlines()
+          found_url = found_copy = False
+          for i, line in enumerate(lines):
+              if line.startswith('PROJECT_HOME_URL='):
+                  lines[i] = 'PROJECT_HOME_URL="https:\\/\\/github.com\\/ridoybabu544-jpg\\/Ridoy.Net-Firmware"'
+                  found_url = True
+              elif line.startswith('LABEL_COPYRIGHT_TEXT='):
+                  lines[i] = 'LABEL_COPYRIGHT_TEXT="Ridoy.Net Firmware. Personal build. Compilation Time: `date +\'%d.%m.%Y %H:%M:%S\'`"'
+                  found_copy = True
+          if not (found_url and found_copy):
+              raise SystemExit('Expected branding markers not found; refusing to modify source')
+          p.write_text('\\n'.join(lines) + '\\n')
+          print('Ridoy.Net web footer and project URL branding applied')
+          PY
+
       - name: Install build dependencies
         run: |
           sudo apt-get update
