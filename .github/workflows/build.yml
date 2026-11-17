@@ -1,4 +1,4 @@
-name: Ridoy.Net Firmware Build
+name: Ridoy.Net Padavan Build - TL-WR840N V6
 
 on:
   workflow_dispatch:
@@ -10,18 +10,35 @@ permissions:
 
 jobs:
   build:
+    name: Build TL-WR840N V6 (MT7628 / 4 MB)
     runs-on: ubuntu-22.04
     timeout-minutes: 360
     steps:
       - name: Checkout project configuration
         uses: actions/checkout@v4
 
-      - name: Checkout firmware source branch
+      - name: Checkout Padavan source
         uses: actions/checkout@v4
         with:
           repository: ridoybabu544-jpg/Ridoy.Net-Firmware
           ref: source
           path: source
+
+      - name: Verify exact board configuration and 4 MB flash target
+        working-directory: source/trunk
+        shell: bash
+        run: |
+          set -euo pipefail
+          TEMPLATE="configs/templates/tplink/tl_wr840n-v6.config"
+          BOARD="configs/boards/TPLINK/TL_WR840N-V6"
+          test -f "$TEMPLATE"
+          test -f "$BOARD/board.h"
+          test -f "$BOARD/kernel-3.4.x.config"
+          grep -Fq 'CONFIG_FIRMWARE_PRODUCT_ID="TL_WR840N-V6"' "$TEMPLATE"
+          grep -Fq 'CONFIG_RT2880_FLASH_4M=y' "$BOARD/kernel-3.4.x.config"
+          echo "Verified Padavan board profile: TL_WR840N-V6"
+          echo "Verified kernel flash setting: 4 MB"
+          cp "$TEMPLATE" .config
 
       - name: Apply Ridoy.Net web branding
         working-directory: source/trunk/user/www
@@ -41,8 +58,8 @@ jobs:
                   found_copy = True
           if not (found_url and found_copy):
               raise SystemExit('Expected branding markers not found; refusing to modify source')
-          p.write_text('\n'.join(lines) + '\n')
-          print('Ridoy.Net web footer and project URL branding applied')
+          p.write_text('\\n'.join(lines) + '\\n')
+          print('Ridoy.Net web branding applied')
           PY
 
       - name: Install build dependencies
@@ -50,17 +67,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y autoconf autoconf-archive automake autopoint bison build-essential ca-certificates cmake cpio curl dos2unix doxygen fakeroot flex gawk gettext git gperf help2man htop kmod libarchive-tools libblkid-dev libc-ares-dev libcurl4-openssl-dev libdevmapper-dev libev-dev libevent-dev libexif-dev libflac-dev libgmp3-dev libid3tag0-dev libidn2-dev libjpeg-dev libkeyutils-dev libltdl-dev libmpc-dev libmpfr-dev libncurses5-dev libogg-dev libsqlite3-dev libssl-dev libsystemd-dev libtool libtool-bin libudev-dev libunbound-dev libvorbis-dev libxml2-dev locales mc nano pkg-config ppp-dev python3 python3-docutils sshpass texinfo unzip uuid uuid-dev vim wget xxd zlib1g-dev
 
-      - name: Build toolchain
+      - name: Build MIPS toolchain
         working-directory: source/toolchain
         run: ./build_toolchain.sh
 
-      - name: Configure TP-Link TL-WR845N V4
-        working-directory: source/trunk
-        run: |
-          test -f configs/templates/tplink/tl_wr845n-v4.config
-          cp configs/templates/tplink/tl_wr845n-v4.config .config
-
-      - name: Build firmware
+      - name: Build TL-WR840N V6 firmware
         working-directory: source/trunk
         run: ./build_firmware.sh
 
@@ -68,6 +79,7 @@ jobs:
         if: always()
         shell: bash
         run: |
+          set -euo pipefail
           mkdir -p output
           if [ -d source/trunk/images ]; then
             find source/trunk/images -maxdepth 2 -type f -print0 | while IFS= read -r -d '' file; do
@@ -76,7 +88,7 @@ jobs:
           fi
           ls -lah output
 
-      - name: Validate firmware image size and create checksums
+      - name: Validate image size and create checksums
         if: success()
         shell: bash
         run: |
@@ -87,122 +99,35 @@ jobs:
 
           output = Path("output")
           images = sorted(p for p in output.glob("*.bin") if p.is_file())
-          if not images:
-              sys.exit("ERROR: no .bin firmware image found")
-
-          # TL-WR845N V4 board partition: offset 0x10000, size 0x3C0000.
-          max_size = 0x3C0000
-          lines = []
-          for image in images:
-              size = image.stat().st_size
-              if size <= 0 or size > max_size:
-                  sys.exit(f"ERROR: {image.name} size {size} exceeds firmware partition limit {max_size}")
-              digest = hashlib.sha256(image.read_bytes()).hexdigest()
-              lines.append(f"{digest}  {image.name}")
-              print(f"OK: {image.name}: {size} bytes <= {max_size} bytes")
-          (output / "SHA256SUMS.txt").write_text("\n".join(lines) + "\n")
-          (output / "BUILD-CHECK.txt").write_text(
-              "Target: TP-Link TL-WR845N V4 (UN)\n"
-              "Expected TP-Link HWID: 0x08450004\n"
-              "Firmware partition: offset 0x10000, size 0x3C0000\n"
-              "Check: image size only; this does NOT certify cross-firmware upgrade compatibility.\n"
-          )
-          PY
-
-      - name: Create experimental TFTP recovery image
-        if: success()
-        shell: bash
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          import hashlib
-          import sys
-
-          out = Path("output")
-          candidates = sorted(
-              p for p in out.glob("TL_WR845N-V4*.bin")
-              if p.is_file() and p.name != "tp_recovery.bin"
-          )
-          if len(candidates) != 1:
-              sys.exit(f"ERROR: expected exactly one TL_WR845N-V4 firmware .bin, found {len(candidates)}")
-
-          source = candidates[0]
-          payload = source.read_bytes()
-          # Community-documented TL-WR845N V4 TFTP packaging: prepend 0x10000 zero bytes.
-          # This creates a test artifact only; it does not prove bootloader acceptance.
-          recovery = bytes(0x10000) + payload
-          limit = 0x3D0000  # end of the firmware region, before Storage partition
-          if len(recovery) > limit:
-              sys.exit(f"ERROR: recovery image {len(recovery)} bytes exceeds {limit}-byte TFTP region limit")
-
-          target = out / "tp_recovery.bin"
-          target.write_bytes(recovery)
-          check = target.read_bytes()
-          if check[:0x10000] != bytes(0x10000) or check[0x10000:] != payload:
-              sys.exit("ERROR: recovery image byte-for-byte validation failed")
-
-          digest = hashlib.sha256(check).hexdigest()
-          with (out / "SHA256SUMS.txt").open("a") as f:
-              f.write(f"{digest}  tp_recovery.bin\n")
-          (out / "RECOVERY-CHECK.txt").write_text(
-              "File: tp_recovery.bin\n"
-              "Target: TP-Link TL-WR845N V4 (UN)\n"
-              "Packaging: 0x10000 zero-byte prefix + standard firmware image\n"
-              f"Source: {source.name}\n"
-              f"Size: {len(check)} bytes\n"
-              f"SHA-256: {digest}\n"
-              "Validation: prefix and payload byte comparison passed; size limit passed.\n"
-              "WARNING: packaging validation only. TFTP bootloader acceptance and on-device recovery have NOT been tested. Do not flash until independently verified.\n"
-          )
-          print(f"OK: created {target} ({len(check)} bytes)")
-          print(f"SHA-256: {digest}")
-          PY
-
-      - name: Create TFTP recovery candidate (stripped TP-Link header)
-        if: success()
-        shell: bash
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          import hashlib
-          import sys
-
-          output = Path("output")
-          images = sorted(p for p in output.glob("*.bin") if p.is_file() and p.name != "tp_recovery.bin")
           if len(images) != 1:
-              sys.exit(f"ERROR: expected exactly one primary firmware image, found {len(images)}")
-          source = images[0]
-          data = source.read_bytes()
-          if len(data) <= 512:
-              sys.exit("ERROR: image is too small to contain a TP-Link 512-byte header")
-          # TP-Link TFTP recovery commonly consumes the firmware payload without
-          # the 512-byte vendor header. This is a candidate, not device-validated.
-          recovery = data[512:]
+              sys.exit(f"ERROR: expected exactly one .bin image, found {len(images)}")
+
+          # Conservative firmware payload ceiling for a 4 MiB flash layout.
           max_size = 0x3C0000
-          if len(recovery) <= 0 or len(recovery) > max_size:
-              sys.exit(f"ERROR: recovery payload size {len(recovery)} exceeds partition limit {max_size}")
-          target = output / "tp_recovery.bin"
-          target.write_bytes(recovery)
-          digest = hashlib.sha256(recovery).hexdigest()
-          with (output / "SHA256SUMS.txt").open("a") as f:
-              f.write(f"{digest}  {target.name}\\n")
-          (output / "RECOVERY-CHECK.txt").write_text(
-              f"Source image: {source.name}\\n"
-              f"Recovery candidate: {target.name}\\n"
-              f"Method: removed first 512 bytes (TP-Link vendor header)\\n"
-              f"Payload size: {len(recovery)} bytes\\n"
-              f"SHA-256: {digest}\\n"
-              "Status: generated and size-checked only. TFTP filename/IP/bootloader acceptance and actual recovery are NOT verified on hardware.\\n"
-              "Do not flash until the exact TL-WR845N V4 UN recovery procedure and image format are confirmed.\\n"
+          image = images[0]
+          size = image.stat().st_size
+          if size <= 0 or size > max_size:
+              sys.exit(f"ERROR: {image.name} size {size} exceeds configured ceiling {max_size}")
+
+          digest = hashlib.sha256(image.read_bytes()).hexdigest()
+          (output / "SHA256SUMS.txt").write_text(f"{digest}  {image.name}\\n")
+          (output / "BUILD-CHECK.txt").write_text(
+              "Target: TP-Link TL-WR840N (EU) V6.20\\n"
+              "Padavan board profile: TL_WR840N-V6\\n"
+              "Reported hardware ID: 0x08400006 (not independently encoded/verified by this build)\\n"
+              "SoC: MediaTek MT7628\\n"
+              "Flash: 4 MB; configured image ceiling: 0x3C0000 bytes\\n"
+              f"Image: {image.name}\\nSize: {size} bytes\\nSHA-256: {digest}\\n"
+              "This check validates build output and size only. It does NOT prove EU V6.20 bootloader acceptance, partition compatibility, or safe flashing.\\n"
           )
-          print(f"Created candidate {target}: {len(recovery)} bytes; SHA-256 {digest}")
+          print(f"OK: {image.name} is {size} bytes (limit {max_size}); SHA-256 {digest}")
           PY
 
-      - name: Upload firmware artifacts
+      - name: Upload firmware artifact
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: Ridoy-Net-TL-WR845N-V4
+          name: Ridoy-Net-TL-WR840N-V6
           path: output/*
-          if-no-files-found: warn
+          if-no-files-found: error
           retention-days: 7
