@@ -564,15 +564,9 @@ function show_menu(L1, L2, L3){
 }
 
 function show_footer(){
-	footer_code = '<div align="center" class="bottom-image"></div>\n';
-	footer_code +='<div align="center" class="copyright"><#footer_copyright_desc#></div>\n';
-	footer_code +='<div align="center">\n';
-	footer_code +='  <span>Developed by © Andy Padavan &amp; <a href="https://github.com/OpenPadavan/padavan">OpenPadavan</a></span></br>\n';
-	footer_code +='  <span>Firmware distribution is prohibited</span></br>\n';
-	footer_code +='  <span>Non-Commercial Use Only</span></br>\n';
-	footer_code +='</div>\n';
-
-	$("footer").innerHTML = footer_code;
+	// Ridoy.Net: hide the entire footer area and all upstream footer text.
+	$("footer").innerHTML = "";
+	$("footer").style.display = "none";
 
 	flash_button();
 }
