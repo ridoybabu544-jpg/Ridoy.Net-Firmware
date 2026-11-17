@@ -109,18 +109,26 @@ jobs:
           if size <= 0 or size > max_size:
               sys.exit(f"ERROR: {image.name} size {size} exceeds configured ceiling {max_size}")
 
-          digest = hashlib.sha256(image.read_bytes()).hexdigest()
-          (output / "SHA256SUMS.txt").write_text(f"{digest}  {image.name}\n")
+          data = image.read_bytes()
+          # Verify the legacy TP-Link header hardware ID emitted by this board target.
+          hwid = int.from_bytes(data[0x34:0x38], "big")
+          expected_hwid = 0x08400006
+          if hwid != expected_hwid:
+              sys.exit(f"ERROR: image header HWID 0x{hwid:08X}; expected 0x{expected_hwid:08X}")
+
+          digest = hashlib.sha256(data).hexdigest()
+          (output / "SHA256SUMS.txt").write_text(f"{digest}  {image.name}\\n")
           (output / "BUILD-CHECK.txt").write_text(
-              "Target: TP-Link TL-WR840N (EU) V6.20\n"
-              "Padavan board profile: TL_WR840N-V6\n"
-              "Reported hardware ID: 0x08400006 (not independently encoded/verified by this build)\n"
-              "SoC: MediaTek MT7628\n"
-              "Flash: 4 MB; configured image ceiling: 0x3C0000 bytes\n"
-              f"Image: {image.name}\nSize: {size} bytes\nSHA-256: {digest}\n"
-              "This check validates build output and size only. It does NOT prove EU V6.20 bootloader acceptance, partition compatibility, or safe flashing.\n"
+              "Build profile: TP-Link TL-WR840N V6 / TL_WR840N-V6\\n"
+              "Intended retail variant: EU V6.20 (not independently proven by board profile)\\n"
+              "SoC: MediaTek MT7628\\n"
+              "Configured SPI flash size: 4 MB\\n"
+              f"Image header HWID at offset 0x34: 0x{hwid:08X}\\n"
+              f"Image: {image.name}\\nSize: {size} bytes\\nSHA-256: {digest}\\n"
+              "WARNING: This is a Padavan image, not TP-Link stock firmware. The stock TP-Link web updater may reject it (including error 4506).\\n"
+              "No safe installation method or bootloader recovery procedure is verified for this exact EU V6.20 unit. Do not flash until confirmed.\\n"
           )
-          print(f"OK: {image.name} is {size} bytes (limit {max_size}); SHA-256 {digest}")
+          print(f"OK: {image.name}; HWID 0x{hwid:08X}; {size} bytes; SHA-256 {digest}")
           PY
 
       - name: Upload firmware artifact
