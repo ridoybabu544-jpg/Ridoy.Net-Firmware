@@ -58,7 +58,7 @@ jobs:
                   found_copy = True
           if not (found_url and found_copy):
               raise SystemExit('Expected branding markers not found; refusing to modify source')
-          p.write_text('\\n'.join(lines) + '\\n')
+          p.write_text('\n'.join(lines) + '\n')
           print('Ridoy.Net web branding applied')
           PY
 
@@ -110,15 +110,15 @@ jobs:
               sys.exit(f"ERROR: {image.name} size {size} exceeds configured ceiling {max_size}")
 
           digest = hashlib.sha256(image.read_bytes()).hexdigest()
-          (output / "SHA256SUMS.txt").write_text(f"{digest}  {image.name}\\n")
+          (output / "SHA256SUMS.txt").write_text(f"{digest}  {image.name}\n")
           (output / "BUILD-CHECK.txt").write_text(
-              "Target: TP-Link TL-WR840N (EU) V6.20\\n"
-              "Padavan board profile: TL_WR840N-V6\\n"
-              "Reported hardware ID: 0x08400006 (not independently encoded/verified by this build)\\n"
-              "SoC: MediaTek MT7628\\n"
-              "Flash: 4 MB; configured image ceiling: 0x3C0000 bytes\\n"
-              f"Image: {image.name}\\nSize: {size} bytes\\nSHA-256: {digest}\\n"
-              "This check validates build output and size only. It does NOT prove EU V6.20 bootloader acceptance, partition compatibility, or safe flashing.\\n"
+              "Target: TP-Link TL-WR840N (EU) V6.20\n"
+              "Padavan board profile: TL_WR840N-V6\n"
+              "Reported hardware ID: 0x08400006 (not independently encoded/verified by this build)\n"
+              "SoC: MediaTek MT7628\n"
+              "Flash: 4 MB; configured image ceiling: 0x3C0000 bytes\n"
+              f"Image: {image.name}\nSize: {size} bytes\nSHA-256: {digest}\n"
+              "This check validates build output and size only. It does NOT prove EU V6.20 bootloader acceptance, partition compatibility, or safe flashing.\n"
           )
           print(f"OK: {image.name} is {size} bytes (limit {max_size}); SHA-256 {digest}")
           PY
