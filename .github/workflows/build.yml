@@ -3,7 +3,7 @@ name: Ridoy.Net Padavan Build - TL-WR840N V6
 on:
   workflow_dispatch:
   push:
-    branches: [ main ]
+    branches: [ main, source ]
 
 permissions:
   contents: read
