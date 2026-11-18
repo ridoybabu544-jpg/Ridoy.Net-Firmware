@@ -14,23 +14,19 @@ body.body_iframe{
     margin: 0 auto;
 }
 
+/* Ridoy.Net branding: shared stylesheet used by the router UI pages */
 #logo {
-    background-image: none;
-    width: 150px;
-    height: 71px;
-    margin-top: 40px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    background: url("/bootstrap/img/ridoynet_logo.svg?v=ridoynet20261119") center center / contain no-repeat !important;
+    background-image: url("/bootstrap/img/ridoynet_logo.svg?v=ridoynet20261119") !important;
+    width: 220px !important;
+    height: 84px !important;
+    margin: 18px auto 0 !important;
+    display: block !important;
 }
+#logo::before,
 #logo::after {
-    content: "Ridoy.Net";
-    color: #F5F5F5;
-    font-family: Arial, Helvetica, sans-serif;
-    font-size: 25px;
-    font-weight: 700;
-    letter-spacing: -0.8px;
-    text-shadow: 0 1px 3px rgba(0,0,0,.55);
+    content: none !important;
+    display: none !important;
 }
 #logo:hover {
     cursor: pointer;
@@ -45,7 +41,7 @@ body.body_iframe{
     text-decoration: none;
 }
 
-#footer{color: #F5F5F5}
+#footer, #footer * { display: none !important; visibility: hidden !important; height: 0 !important; min-height: 0 !important; margin: 0 !important; padding: 0 !important; }
 
 .form_thin{margin-bottom: 0px}
 
