@@ -3339,7 +3339,10 @@ static int
 ridoy_portal_clean_field(char *out, size_t out_len, const char *in)
 {
 	size_t n = 0;
-	if (!out || out_len < 2 || !in)
+	if (!out || out_len < 2)
+		return 0;
+	out[0] = '\0';
+	if (!in)
 		return 0;
 	while (*in && n + 1 < out_len) {
 		unsigned char ch = (unsigned char)*in++;
@@ -4290,7 +4293,7 @@ struct mime_handler mime_handlers[] = {
 	/* Ridoy.Net captive portal (public only; firewall controls forwarding) */
 	{ "portal.html", "text/html", no_cache_IE, NULL, do_file, 0 },
 	{ "portal_status.js", "text/javascript", no_cache_IE, NULL, do_ej, 0 },
-	{ "captive-api.json", "application/json", no_cache_IE, NULL, do_ej, 0 },
+	{ "captive-api.json", "application/captive+json", no_cache_IE, NULL, do_ej, 0 },
 	{ "RidoyPortal.asp", "text/html", no_cache_IE, do_html_apply_post, do_ej, 1 },
 	{ "portal_submit.cgi*", "text/html", no_cache_IE, do_html_apply_post, do_ridoy_portal_submit, 0 },
 
