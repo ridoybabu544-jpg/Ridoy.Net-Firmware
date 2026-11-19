@@ -3292,6 +3292,211 @@ int ej_shown_language_option(int eid, webs_t wp, int argc, char **argv) {
 	return 0;
 }
 
+#define RIDOY_PORTAL_ALLOW_FILE   "/etc/storage/ridoy_portal_allow"
+#define RIDOY_PORTAL_PENDING_FILE "/etc/storage/ridoy_portal_pending"
+
+static int
+ridoy_portal_valid_mac(const char *mac)
+{
+	int i;
+	if (!mac || strlen(mac) != 17)
+		return 0;
+	for (i = 0; i < 17; i++) {
+		if (i % 3 == 2) {
+			if (mac[i] != ':')
+				return 0;
+		} else if (!isxdigit((unsigned char)mac[i])) {
+			return 0;
+		}
+	}
+	return 1;
+}
+
+static int
+ridoy_portal_mac_in_file(const char *path, const char *mac)
+{
+	FILE *fp;
+	char line[256], saved[18];
+	int found = 0;
+
+	if (!ridoy_portal_valid_mac(mac))
+		return 0;
+	fp = fopen(path, "r");
+	if (!fp)
+		return 0;
+	while (fgets(line, sizeof(line), fp)) {
+		if (sscanf(line, "%17[^|]", saved) == 1 &&
+		    strcasecmp(saved, mac) == 0) {
+			found = 1;
+			break;
+		}
+	}
+	fclose(fp);
+	return found;
+}
+
+static int
+ridoy_portal_clean_field(char *out, size_t out_len, const char *in)
+{
+	size_t n = 0;
+	if (!out || out_len < 2 || !in)
+		return 0;
+	while (*in && n + 1 < out_len) {
+		unsigned char ch = (unsigned char)*in++;
+		if (ch == '|' || ch == '\r' || ch == '\n' || ch < 32 || ch == 127)
+			continue;
+		out[n++] = (char)ch;
+	}
+	out[n] = '\0';
+	return (int)n;
+}
+
+static int
+ridoy_portal_remove_pending(const char *mac)
+{
+	FILE *in, *out;
+	char line[256], saved[18];
+	int removed = 0;
+
+	if (!ridoy_portal_valid_mac(mac))
+		return 0;
+	in = fopen(RIDOY_PORTAL_PENDING_FILE, "r");
+	if (!in)
+		return 0;
+	out = fopen("/tmp/ridoy_portal_pending.tmp", "w");
+	if (!out) {
+		fclose(in);
+		return 0;
+	}
+	while (fgets(line, sizeof(line), in)) {
+		if (sscanf(line, "%17[^|]", saved) == 1 &&
+		    strcasecmp(saved, mac) == 0) {
+			removed = 1;
+			continue;
+		}
+		fputs(line, out);
+	}
+	fclose(in);
+	if (fclose(out) != 0 || rename("/tmp/ridoy_portal_pending.tmp", RIDOY_PORTAL_PENDING_FILE) != 0) {
+		unlink("/tmp/ridoy_portal_pending.tmp");
+		return 0;
+	}
+	return removed;
+}
+
+static void
+ridoy_portal_write_escaped(FILE *out, const char *value)
+{
+	const unsigned char *p = (const unsigned char *)(value ? value : "");
+	for (; *p; p++) {
+		switch (*p) {
+		case '&': fputs("&amp;", out); break;
+		case '<': fputs("&lt;", out); break;
+		case '>': fputs("&gt;", out); break;
+		case '"': fputs("&quot;", out); break;
+		case '\'': fputs("&#39;", out); break;
+		default:
+			if (*p >= 32 && *p != 127)
+				fputc(*p, out);
+			break;
+		}
+	}
+}
+
+static int
+ej_ridoy_portal_status(int eid, webs_t wp, int argc, char **argv)
+{
+	const char *mac = get_cgi("ridoy_client_mac");
+	websWrite(wp, "%s", ridoy_portal_mac_in_file(RIDOY_PORTAL_ALLOW_FILE, mac) ? "true" : "false");
+	return 0;
+}
+
+static int
+ej_ridoy_portal_pending(int eid, webs_t wp, int argc, char **argv)
+{
+	FILE *fp;
+	char line[256], mac[18], ip[48], name[80], phone[48];
+	int count = 0;
+
+	fp = fopen(RIDOY_PORTAL_PENDING_FILE, "r");
+	if (!fp) {
+		websWrite(wp, "<tr><td colspan=\"5\">No pending requests</td></tr>");
+		return 0;
+	}
+	while (fgets(line, sizeof(line), fp)) {
+		mac[0] = ip[0] = name[0] = phone[0] = '\0';
+		if (sscanf(line, "%17[^|]|%47[^|]|%79[^|]|%47[^\r\n]", mac, ip, name, phone) < 3)
+			continue;
+		count++;
+		websWrite(wp, "<tr><td>");
+		ridoy_portal_write_escaped(wp, name);
+		websWrite(wp, "</td><td>");
+		ridoy_portal_write_escaped(wp, phone);
+		websWrite(wp, "</td><td><code>");
+		ridoy_portal_write_escaped(wp, mac);
+		websWrite(wp, "</code></td><td>");
+		ridoy_portal_write_escaped(wp, ip);
+		websWrite(wp, "</td><td>"
+			"<form method=\"post\" action=\"/apply.cgi\" style=\"display:inline\">"
+			"<input type=\"hidden\" name=\"action_mode\" value=\" RidoyPortalApprove \">"
+			"<input type=\"hidden\" name=\"current_page\" value=\"RidoyPortal.asp\">"
+			"<input type=\"hidden\" name=\"ridoy_mac\" value=\"");
+		ridoy_portal_write_escaped(wp, mac);
+		websWrite(wp, "\">"
+			"<button type=\"submit\" class=\"btn btn-success\">Approve · Unlimited GB</button>"
+			"</form> "
+			"<form method=\"post\" action=\"/apply.cgi\" style=\"display:inline\">"
+			"<input type=\"hidden\" name=\"action_mode\" value=\" RidoyPortalDeny \">"
+			"<input type=\"hidden\" name=\"current_page\" value=\"RidoyPortal.asp\">"
+			"<input type=\"hidden\" name=\"ridoy_mac\" value=\"");
+		ridoy_portal_write_escaped(wp, mac);
+		websWrite(wp, "\">"
+			"<button type=\"submit\" class=\"btn\">Deny</button></form>"
+			"</td></tr>\n");
+	}
+	fclose(fp);
+	if (!count)
+		websWrite(wp, "<tr><td colspan=\"5\">No pending requests</td></tr>");
+	return 0;
+}
+
+static void
+do_ridoy_portal_submit(const char *url, FILE *stream)
+{
+	const char *ip = get_cgi("ridoy_client_ip");
+	const char *mac = get_cgi("ridoy_client_mac");
+	const char *name = get_cgi("portal_name");
+	const char *phone = get_cgi("portal_phone");
+	char clean_name[80], clean_phone[48];
+	FILE *fp;
+	int already_allowed;
+
+	ridoy_portal_clean_field(clean_name, sizeof(clean_name), name);
+	ridoy_portal_clean_field(clean_phone, sizeof(clean_phone), phone);
+
+	if (!ip || !*ip || !ridoy_portal_valid_mac(mac)) {
+		websWrite(stream, "<!doctype html><meta http-equiv=\"refresh\" content=\"0;url=/portal.html\">");
+		return;
+	}
+
+	already_allowed = ridoy_portal_mac_in_file(RIDOY_PORTAL_ALLOW_FILE, mac);
+	if (!already_allowed && !ridoy_portal_mac_in_file(RIDOY_PORTAL_PENDING_FILE, mac)) {
+		fp = fopen(RIDOY_PORTAL_PENDING_FILE, "a");
+		if (fp) {
+			fprintf(fp, "%s|%s|%s|%s\n", mac, ip, clean_name, clean_phone);
+			fclose(fp);
+		}
+	}
+
+	websWrite(stream,
+		"<!doctype html><html><head><meta charset=\"utf-8\">"
+		"<meta http-equiv=\"refresh\" content=\"1;url=/portal.html?requested=1\">"
+		"<title>Ridoy.Net request</title></head><body>"
+		"<p>%s</p><a href=\"/portal.html\">Continue</a></body></html>",
+		already_allowed ? "This device is already approved." :
+		"Your access request has been sent to the network administrator.");
+}
+
 static int
 apply_cgi(const char *url, webs_t wp)
 {
@@ -3306,6 +3511,31 @@ apply_cgi(const char *url, webs_t wp)
 	script = websGetVar(wp, "action_script","");
 
 	snprintf(next_host, sizeof(next_host), "%s", websGetVar(wp, "next_host", ""));
+
+	if (!strcmp(value, " RidoyPortalApprove ")) {
+		const char *mac = websGetVar(wp, "ridoy_mac", "");
+		FILE *fp;
+		if (get_login_safe() && ridoy_portal_valid_mac(mac) &&
+		    ridoy_portal_mac_in_file(RIDOY_PORTAL_PENDING_FILE, mac) &&
+		    !ridoy_portal_mac_in_file(RIDOY_PORTAL_ALLOW_FILE, mac)) {
+			fp = fopen(RIDOY_PORTAL_ALLOW_FILE, "a");
+			if (fp) {
+				fprintf(fp, "%s|Unlimited GB\n", mac);
+				fclose(fp);
+				ridoy_portal_remove_pending(mac);
+				notify_rc("restart_firewall");
+			}
+		}
+		websRedirect(wp, current_url[0] ? current_url : "RidoyPortal.asp");
+		return 0;
+	}
+	else if (!strcmp(value, " RidoyPortalDeny ")) {
+		const char *mac = websGetVar(wp, "ridoy_mac", "");
+		if (get_login_safe())
+			ridoy_portal_remove_pending(mac);
+		websRedirect(wp, current_url[0] ? current_url : "RidoyPortal.asp");
+		return 0;
+	}
 
 	if (!strcmp(value, " SystemCmd "))
 	{
@@ -4042,6 +4272,12 @@ struct mime_handler mime_handlers[] = {
 	{ "**.ico", "image/x-icon", NULL, NULL, do_file, 0 }, // 2013.04 Eagle23
 	{ "**.svg", "image/svg+xml", NULL, NULL, do_file, 0 }, // 2016.04 Volt1
 
+	/* Ridoy.Net captive portal (public only; firewall controls forwarding) */
+	{ "portal.html", "text/html", no_cache_IE, NULL, do_file, 0 },
+	{ "portal_status.js", "text/javascript", no_cache_IE, NULL, do_ej, 0 },
+	{ "RidoyPortal.asp", "text/html", no_cache_IE, do_html_apply_post, do_ej, 1 },
+	{ "portal_submit.cgi*", "text/html", no_cache_IE, do_html_apply_post, do_ridoy_portal_submit, 0 },
+
 	/* no-cached html/asp files with translations */
 	{ "**.htm*", "text/html", no_cache_IE, do_html_apply_post, do_ej, 1 },
 	{ "**.asp*", "text/html", no_cache_IE, do_html_apply_post, do_ej, 1 },
@@ -4357,5 +4593,7 @@ struct ej_handler ej_handlers[] =
 	{ "openvpn_cli_cert_hook", openvpn_cli_cert_hook},
 	{ "net_iface_list", net_iface_list_hook},
 	{ "net_update_vpnc_wg_state", net_update_vpnc_wg_state_hook},
+	{ "ridoy_portal_status", ej_ridoy_portal_status},
+	{ "ridoy_portal_pending", ej_ridoy_portal_pending},
 	{ NULL, NULL }
 };
