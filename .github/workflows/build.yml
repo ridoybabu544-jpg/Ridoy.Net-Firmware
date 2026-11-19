@@ -1,16 +1,16 @@
-name: Ridoy.Net Padavan Build - TL-WR845N V4
+name: Ridoy.Net Padavan Build - TL-WR840N V6
 
 on:
   workflow_dispatch:
   push:
-    branches: [ main, source ]
+    branches: [ main ]
 
 permissions:
   contents: read
 
 jobs:
   build:
-    name: Build TL-WR845N V4 (MT7628 / 4 MB)
+    name: Build TL-WR840N V6 (MT7628 / 4 MB)
     runs-on: ubuntu-22.04
     timeout-minutes: 360
     steps:
@@ -21,7 +21,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: ridoybabu544-jpg/Ridoy.Net-Firmware
-          ref: source
+          ref: ridoynet-captive-v1
           path: source
 
       - name: Verify exact board configuration and 4 MB flash target
@@ -29,14 +29,24 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          TEMPLATE="configs/templates/tplink/tl_wr845n-v4.config"
-          BOARD="configs/boards/TPLINK/TL_WR845N-V4"
+          TEMPLATE="configs/templates/tplink/tl_wr840n-v6.config"
+          BOARD="configs/boards/TPLINK/TL_WR840N-V6"
           test -f "$TEMPLATE"
           test -f "$BOARD/board.h"
           test -f "$BOARD/kernel-3.4.x.config"
-          grep -Fq 'CONFIG_FIRMWARE_PRODUCT_ID="TL_WR845N-V4"' "$TEMPLATE"
+          grep -Fq 'CONFIG_FIRMWARE_PRODUCT_ID="TL_WR840N-V6"' "$TEMPLATE"
           grep -Fq 'CONFIG_RT2880_FLASH_4M=y' "$BOARD/kernel-3.4.x.config"
-          echo "Verified Padavan board profile: TL_WR845N-V4"
+          grep -Fq 'CONFIG_NETFILTER_XT_MATCH_MAC=y' "$BOARD/kernel-3.4.x.config"
+          grep -Fq 'CONFIG_IP_NF_TARGET_REDIRECT=m' "$BOARD/kernel-3.4.x.config"
+          grep -Fq '#CONFIG_FIRMWARE_INCLUDE_SHORTCUT_FE=y' "$TEMPLATE"
+          test -f user/httpd/web_ex.c
+          grep -Fq 'ej_ridoy_portal_api' user/httpd/web_ex.c
+          grep -Fq 'ridoy_portal_apply_firewall' user/rc/firewall_ex.c
+          grep -Fq 'captive-api.json' user/rc/services_ex.c
+          test -f user/www/n56u_ribbon_fixed/portal.html
+          test -f user/www/n56u_ribbon_fixed/RidoyPortal.asp
+          echo "Verified Padavan board profile: TL_WR840N-V6"
+          echo "Verified captive portal handlers and DHCP Option 114"
           echo "Verified kernel flash setting: 4 MB"
           cp "$TEMPLATE" .config
 
@@ -71,7 +81,7 @@ jobs:
         working-directory: source/toolchain
         run: ./build_toolchain.sh
 
-      - name: Build TL-WR845N V4 firmware
+      - name: Build TL-WR840N V6 firmware
         working-directory: source/trunk
         run: ./build_firmware.sh
 
@@ -118,7 +128,7 @@ jobs:
           digest = hashlib.sha256(data).hexdigest()
           (output / "SHA256SUMS.txt").write_text(f"{digest}  {image.name}\\n")
           (output / "BUILD-CHECK.txt").write_text(
-              "Build profile: TP-Link TL-WR845N V4 / TL_WR845N-V4\\n"
+              "Build profile: TP-Link TL-WR840N V6 / TL_WR840N-V6\\n"
               "Intended retail variant: EU V6.20 (not independently proven by board profile)\\n"
               "SoC: MediaTek MT7628\\n"
               "Configured SPI flash size: 4 MB\\n"
@@ -127,14 +137,14 @@ jobs:
               "WARNING: This is a Padavan image, not TP-Link stock firmware. The stock TP-Link web updater may reject it (including error 4506).\\n"
               "No safe installation method or bootloader recovery procedure is verified for this exact EU V6.20 unit. Do not flash until confirmed.\\n"
           )
-          print(f"OK: {image.name}; TL-WR845N V4 board profile; image HWID 0x{hwid:08X}; {size} bytes; SHA-256 {digest}")
+          print(f"OK: {image.name}; TL-WR840N V6 board profile; image HWID 0x{hwid:08X}; {size} bytes; SHA-256 {digest}")
           PY
 
       - name: Upload firmware artifact
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: Ridoy-Net-TL-WR845N-V4
+          name: Ridoy-Net-TL-WR840N-V6
           path: output/*
           if-no-files-found: error
           retention-days: 7
