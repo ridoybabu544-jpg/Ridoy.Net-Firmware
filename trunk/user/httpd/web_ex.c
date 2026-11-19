@@ -3439,6 +3439,38 @@ ej_ridoy_portal_lan_ip(int eid, webs_t wp, int argc, char **argv)
 	return 0;
 }
 
+
+static int
+ej_ridoy_portal_bandwidth(int eid, webs_t wp, int argc, char **argv)
+{
+	FILE *fp;
+	char line[256], *colon, *ifname;
+	unsigned long long rx = 0, tx = 0;
+
+	fp = fopen("/proc/net/dev", "r");
+	if (fp) {
+		fgets(line, sizeof(line), fp);
+		fgets(line, sizeof(line), fp);
+		while (fgets(line, sizeof(line), fp)) {
+			colon = strchr(line, ':');
+			if (!colon)
+				continue;
+			*colon = '\\0';
+			ifname = line;
+			while (*ifname == ' ' || *ifname == '\\t')
+				ifname++;
+			if (strcmp(ifname, "br0") == 0) {
+				if (sscanf(colon + 1, "%llu%*u%*u%*u%*u%*u%*u%*u%llu", &rx, &tx) != 2)
+					rx = tx = 0;
+				break;
+			}
+		}
+		fclose(fp);
+	}
+	websWrite(wp, "{\\"rx\\":%llu,\\"tx\\":%llu}\\n", rx, tx);
+	return 0;
+}
+
 static int
 ej_ridoy_portal_pending(int eid, webs_t wp, int argc, char **argv)
 {
@@ -4626,5 +4658,6 @@ struct ej_handler ej_handlers[] =
 	{ "ridoy_portal_api", ej_ridoy_portal_api},
 	{ "ridoy_portal_lan_ip", ej_ridoy_portal_lan_ip},
 	{ "ridoy_portal_pending", ej_ridoy_portal_pending},
+	{ "ridoy_portal_bandwidth", ej_ridoy_portal_bandwidth},
 	{ NULL, NULL }
 };
