@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#101827">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<title>Ridoy.Net · Wi-Fi Access</title>
+<style>
+:root{color-scheme:dark;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;display:grid;place-items:center;padding:22px;background:radial-gradient(circle at 15% 10%,#263b61 0,#101827 42%,#080d16 100%);color:#f6f8fc}
+main{width:min(100%,430px);padding:30px;border:1px solid #35445a;border-radius:22px;background:#111c2bdc;box-shadow:0 24px 70px #0008}
+.brand{font-size:14px;letter-spacing:.22em;text-transform:uppercase;color:#91b7ff;font-weight:800}
+h1{font-size:27px;line-height:1.15;margin:12px 0 8px}
+p{color:#b8c4d6;line-height:1.55}
+label{display:block;margin:18px 0 7px;color:#dce5f2;font-size:14px}
+input{width:100%;padding:13px 14px;border-radius:11px;border:1px solid #40516a;background:#0b1421;color:white;font-size:16px;outline:none}
+input:focus{border-color:#79aaff;box-shadow:0 0 0 3px #407bdb33}
+button{width:100%;margin-top:22px;padding:14px;border:0;border-radius:11px;background:linear-gradient(100deg,#3679ee,#62a7ff);color:#061329;font-size:16px;font-weight:800}
+button:disabled{opacity:.6}
+#status{margin-top:18px;padding:12px;border-radius:10px;background:#1a2b40;color:#c8d8ec;font-size:14px;min-height:46px}
+small{display:block;margin-top:20px;color:#8392a7;text-align:center}
+</style>
+</head>
+<body>
+<main>
+<div class="brand">Ridoy.Net</div>
+<h1>Connect to Wi-Fi</h1>
+<p>Enter your name to request internet access. Your device will be connected after the network administrator approves the request.</p>
+<form id="requestForm">
+<label for="portal_name">Your name</label>
+<input id="portal_name" name="portal_name" type="text" maxlength="70" autocomplete="name" required>
+<label for="portal_phone">Phone number (optional)</label>
+<input id="portal_phone" name="portal_phone" type="tel" maxlength="40" autocomplete="tel">
+<button id="sendButton" type="submit">Request Access</button>
+</form>
+<div id="status" role="status" aria-live="polite">Waiting for your request.</div>
+<small>Ridoy.Net · Managed Wi-Fi Access</small>
+</main>
+<script>
+(function(){
+ var form=document.getElementById('requestForm');
+ var status=document.getElementById('status');
+ var button=document.getElementById('sendButton');
+ var requested=(new URLSearchParams(location.search)).get('requested')==='1';
+ if(requested){status.textContent='Request received. Waiting for administrator approval...';}
+ form.addEventListener('submit',function(ev){
+   ev.preventDefault();
+   button.disabled=true;
+   status.textContent='Sending your access request...';
+   fetch('/portal_submit.cgi',{method:'POST',body:new URLSearchParams(new FormData(form)),cache:'no-store'})
+    .then(function(r){if(!r.ok)throw new Error('request failed');return r.text();})
+    .then(function(){requested=true;status.textContent='Request sent. Please keep this page open while the administrator approves your device.';})
+    .catch(function(){status.textContent='Could not send the request. Please reconnect to Wi-Fi and try again.';})
+    .finally(function(){button.disabled=false;});
+ });
+ function checkApproval(){
+   var s=document.createElement('script');
+   s.src='/portal_status.js?ts='+Date.now();
+   s.onload=function(){
+     if(window.ridoyPortalApproved===true){
+       status.textContent='Approved! Connecting you to the internet...';
+       setTimeout(function(){location.replace('http://neverssl.com/');},700);
+     }
+     s.remove();
+   };
+   s.onerror=function(){s.remove();};
+   document.head.appendChild(s);
+ }
+ setInterval(checkApproval,4000);
+ checkApproval();
+})();
+</script>
+</body>
+</html>
