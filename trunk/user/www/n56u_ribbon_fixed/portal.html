@@ -39,6 +39,7 @@ small{display:block;margin-top:20px;color:#8392a7;text-align:center}
 <small>Ridoy.Net · Managed Wi-Fi Access</small>
 </main>
 <script>
+var ridoyPortalBase = 'http://<% ridoy_portal_lan_ip(); %>';
 (function(){
  var form=document.getElementById('requestForm');
  var status=document.getElementById('status');
@@ -49,7 +50,7 @@ small{display:block;margin-top:20px;color:#8392a7;text-align:center}
    ev.preventDefault();
    button.disabled=true;
    status.textContent='Sending your access request...';
-   fetch('/portal_submit.cgi',{method:'POST',body:new URLSearchParams(new FormData(form)),cache:'no-store'})
+   fetch(ridoyPortalBase+'/portal_submit.cgi',{method:'POST',body:new URLSearchParams(new FormData(form)),cache:'no-store'})
     .then(function(r){if(!r.ok)throw new Error('request failed');return r.text();})
     .then(function(){requested=true;status.textContent='Request sent. Please keep this page open while the administrator approves your device.';})
     .catch(function(){status.textContent='Could not send the request. Please reconnect to Wi-Fi and try again.';})
@@ -57,7 +58,7 @@ small{display:block;margin-top:20px;color:#8392a7;text-align:center}
  });
  function checkApproval(){
    var s=document.createElement('script');
-   s.src='/portal_status.js?ts='+Date.now();
+   s.src=ridoyPortalBase+'/portal_status.js?ts='+Date.now();
    s.onload=function(){
      if(window.ridoyPortalApproved===true){
        status.textContent='Approved! Connecting you to the internet...';
