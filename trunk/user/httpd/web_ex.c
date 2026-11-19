@@ -3366,7 +3366,7 @@ ridoy_portal_remove_pending(const char *mac)
 	in = fopen(RIDOY_PORTAL_PENDING_FILE, "r");
 	if (!in)
 		return 0;
-	out = fopen("/tmp/ridoy_portal_pending.tmp", "w");
+	out = fopen("/etc/storage/ridoy_portal_pending.tmp", "w");
 	if (!out) {
 		fclose(in);
 		return 0;
@@ -3380,8 +3380,8 @@ ridoy_portal_remove_pending(const char *mac)
 		fputs(line, out);
 	}
 	fclose(in);
-	if (fclose(out) != 0 || rename("/tmp/ridoy_portal_pending.tmp", RIDOY_PORTAL_PENDING_FILE) != 0) {
-		unlink("/tmp/ridoy_portal_pending.tmp");
+	if (fclose(out) != 0 || rename("/etc/storage/ridoy_portal_pending.tmp", RIDOY_PORTAL_PENDING_FILE) != 0) {
+		unlink("/etc/storage/ridoy_portal_pending.tmp");
 		return 0;
 	}
 	return removed;
