@@ -3430,6 +3430,16 @@ ej_ridoy_portal_api(int eid, webs_t wp, int argc, char **argv)
 }
 
 static int
+ej_ridoy_portal_lan_ip(int eid, webs_t wp, int argc, char **argv)
+{
+	const char *lan_ip = nvram_safe_get("lan_ipaddr");
+	if (!lan_ip || !*lan_ip)
+		lan_ip = "192.168.1.1";
+	websWrite(wp, "%s", lan_ip);
+	return 0;
+}
+
+static int
 ej_ridoy_portal_pending(int eid, webs_t wp, int argc, char **argv)
 {
 	FILE *fp;
@@ -4291,7 +4301,7 @@ struct mime_handler mime_handlers[] = {
 	{ "**.svg", "image/svg+xml", NULL, NULL, do_file, 0 }, // 2016.04 Volt1
 
 	/* Ridoy.Net captive portal (public only; firewall controls forwarding) */
-	{ "portal.html", "text/html", no_cache_IE, NULL, do_file, 0 },
+	{ "portal.html", "text/html", no_cache_IE, NULL, do_ej, 0 },
 	{ "portal_status.js", "text/javascript", no_cache_IE, NULL, do_ej, 0 },
 	{ "captive-api.json", "application/captive+json", no_cache_IE, NULL, do_ej, 0 },
 	{ "RidoyPortal.asp", "text/html", no_cache_IE, do_html_apply_post, do_ej, 1 },
@@ -4614,6 +4624,7 @@ struct ej_handler ej_handlers[] =
 	{ "net_update_vpnc_wg_state", net_update_vpnc_wg_state_hook},
 	{ "ridoy_portal_status", ej_ridoy_portal_status},
 	{ "ridoy_portal_api", ej_ridoy_portal_api},
+	{ "ridoy_portal_lan_ip", ej_ridoy_portal_lan_ip},
 	{ "ridoy_portal_pending", ej_ridoy_portal_pending},
 	{ NULL, NULL }
 };
