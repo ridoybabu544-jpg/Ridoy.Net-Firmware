@@ -827,12 +827,115 @@ set_preferred_lang(char *cur)
 	return 0;
 }
 
+static int
+ridoy_portal_valid_mac(const char *mac)
+{
+	int i;
+	if (!mac || strlen(mac) != 17)
+		return 0;
+	for (i = 0; i < 17; i++) {
+		if (i % 3 == 2) {
+			if (mac[i] != ':')
+				return 0;
+		} else if (!isxdigit((unsigned char)mac[i])) {
+			return 0;
+		}
+	}
+	return 1;
+}
+
+static int
+ridoy_portal_mac_allowed(const char *mac)
+{
+	FILE *fp;
+	char line[128], saved[18];
+	int allowed = 0;
+
+	if (!ridoy_portal_valid_mac(mac))
+		return 0;
+	fp = fopen("/etc/storage/ridoy_portal_allow", "r");
+	if (!fp)
+		return 0;
+	while (fgets(line, sizeof(line), fp)) {
+		if (sscanf(line, "%17[^|]", saved) == 1 &&
+		    strcasecmp(saved, mac) == 0) {
+			allowed = 1;
+			break;
+		}
+	}
+	fclose(fp);
+	return allowed;
+}
+
+static int
+ridoy_portal_client_allowed(const uaddr *ip)
+{
+	unsigned char mac[8] = {0};
+	char mac_text[18] = {0};
+
+	if (!ip || ip->family != AF_INET)
+		return 0;
+	if (find_mac_from_ip(ip, mac, NULL) != 0)
+		return 0;
+	ether_etoa(mac, mac_text);
+	return ridoy_portal_mac_allowed(mac_text);
+}
+
+static int
+ridoy_portal_router_host(const char *host)
+{
+	char name[256];
+	char *port;
+	const char *lan_ip = nvram_safe_get("lan_ipaddr");
+	const char *lan_host = nvram_safe_get("lan_hostname");
+
+	if (!host || !*host)
+		return 1;
+	snprintf(name, sizeof(name), "%s", host);
+	port = strchr(name, ':');
+	if (port)
+		*port = '\0';
+
+	if ((lan_ip && *lan_ip && !strcasecmp(name, lan_ip)) ||
+	    (lan_host && *lan_host && !strcasecmp(name, lan_host)) ||
+	    !strcasecmp(name, "router.asus.com") ||
+	    !strcasecmp(name, "www.asusrouter.com"))
+		return 1;
+	return 0;
+}
+
+static int
+ridoy_portal_public_file(const char *file)
+{
+	return (file &&
+		(!strcmp(file, "portal.html") ||
+		 !strcmp(file, "portal_submit.cgi") ||
+		 !strcmp(file, "portal_status.js")));
+}
+
+static void
+ridoy_portal_set_client_vars(const uaddr *ip)
+{
+	unsigned char mac[8] = {0};
+	char ip_text[64] = "";
+	char mac_text[18] = "";
+
+	if (ip && ip->family == AF_INET) {
+		snprintf(ip_text, sizeof(ip_text), "%s", inet_ntoa(ip->addr.in4));
+		if (find_mac_from_ip(ip, mac, NULL) == 0)
+			ether_etoa(mac, mac_text);
+	}
+	set_cgi("ridoy_client_ip", ip_text);
+	set_cgi("ridoy_client_mac", mac_text);
+}
+
 static void
 handle_request(FILE *conn_fp, const conn_item_t *item)
 {
 	char line[4096];
 	char *method, *path, *protocol, *authorization, *boundary;
 	char *cur, *end, *cp, *file, *query;
+	char host[256];
 	int len, login_state, method_id, do_logout, clen = 0;
 	time_t if_modified_since = (time_t)-1;
 	struct mime_handler *handler;
@@ -841,6 +944,7 @@ handle_request(FILE *conn_fp, const conn_item_t *item)
 
 	/* Initialize the request variables. */
 	authorization = boundary = NULL;
+	host[0] = '\0';
 
 	/* Parse the first line of the request. */
 	if (!fgets(line, sizeof(line), conn_fp)) {
@@ -875,6 +979,12 @@ handle_request(FILE *conn_fp, const conn_item_t *item)
 		if (strncasecmp(cur, "Accept-Language:", 16) == 0) {
 			if (!http_has_lang)
 				http_has_lang = set_preferred_lang(cur + 16);
+		}
+		else if (strncasecmp(cur, "Host:", 5) == 0) {
+			cp = cur + 5;
+			cp += strspn(cp, " \t");
+			snprintf(host, sizeof(host), "%s", cp);
+			host[strcspn(host, "\r\n")] = '\0';
 		}
 		else if (strncasecmp( cur, "Authorization:", 14) == 0) {
 			cp = cur + 14;
@@ -948,6 +1058,20 @@ handle_request(FILE *conn_fp, const conn_item_t *item)
 
 	login_state = http_login_check(&conn_ip);
 
+	/*
+	 * Unapproved clients are captive on outbound HTTP requests. Router
+	 * management hostnames and the three portal resources remain reachable.
+	 */
+	if (!ridoy_portal_client_allowed(&conn_ip) &&
+	    !ridoy_portal_router_host(host) &&
+	    !ridoy_portal_public_file(file)) {
+		if (method_id == HTTP_METHOD_POST)
+			eat_post_data(conn_fp, clen);
+		file = "portal.html";
+		query = NULL;
+		method_id = HTTP_METHOD_GET;
+	}
+
 	if (login_state == 0) {
 		if (strstr(file, ".htm") != NULL || strstr(file, ".asp") != NULL) {
 			file = "Nologin.asp";
@@ -1002,6 +1126,8 @@ handle_request(FILE *conn_fp, const conn_item_t *item)
 		else if (handler->output == do_ej)
 			do_cgi_clear();
 	}
+
+	ridoy_portal_set_client_vars(&conn_ip);
 
 	if (handler->output == do_file) {
 		if (stat(file, &st) == 0 && !S_ISDIR(st.st_mode)) {
