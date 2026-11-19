@@ -25,6 +25,14 @@ button{padding:9px 12px;border:0;border-radius:7px;background:#e8edf4;color:#203
 <h1>Ridoy.Net · Captive Portal</h1>
 <p>Review devices waiting for internet access. Approval grants the selected device the <strong>Unlimited GB</strong> access plan until it is removed from the approved list.</p>
 <div class="note">Only approve devices you recognise. The device is identified by its current Wi-Fi MAC address.</div>
+<section class="note" aria-live="polite" style="margin-top:14px">
+<strong>Live router bandwidth (br0)</strong>
+<div style="display:flex;gap:24px;flex-wrap:wrap;margin-top:8px">
+<span>Download: <strong id="ridoy-down">--</strong></span>
+<span>Upload: <strong id="ridoy-up">--</strong></span>
+</div>
+<small id="ridoy-bandwidth-status">Updating every second…</small>
+</section>
 <table>
 <thead><tr><th>Name</th><th>Phone</th><th>MAC address</th><th>IP address</th><th>Action</th></tr></thead>
 <tbody>
@@ -33,5 +41,46 @@ button{padding:9px 12px;border:0;border-radius:7px;background:#e8edf4;color:#203
 </table>
 <p><a href="/index.asp">Back to router settings</a></p>
 </main>
+
+<script>
+(function () {
+  var previous = null;
+  var previousAt = 0;
+  function formatRate(value) {
+    if (!isFinite(value) || value < 0) return '--';
+    if (value >= 1048576) return (value / 1048576).toFixed(2) + ' MB/s';
+    if (value >= 1024) return (value / 1024).toFixed(1) + ' KB/s';
+    return value.toFixed(0) + ' B/s';
+  }
+  function refreshBandwidth() {
+    fetch('/RidoyBandwidth.asp?_=' + Date.now(), {cache: 'no-store', credentials: 'same-origin'})
+      .then(function (response) {
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        return response.json();
+      })
+      .then(function (data) {
+        var now = Date.now();
+        var current = {rx: Number(data.rx), tx: Number(data.tx)};
+        if (!isFinite(current.rx) || !isFinite(current.tx)) throw new Error('Invalid counters');
+        if (previous && now > previousAt) {
+          var seconds = (now - previousAt) / 1000;
+          var down = Math.max(0, current.tx - previous.tx) / seconds;
+          var up = Math.max(0, current.rx - previous.rx) / seconds;
+          document.getElementById('ridoy-down').textContent = formatRate(down);
+          document.getElementById('ridoy-up').textContent = formatRate(up);
+        }
+        previous = current;
+        previousAt = now;
+        document.getElementById('ridoy-bandwidth-status').textContent = 'Live · refreshed every second · total LAN bridge traffic';
+      })
+      .catch(function () {
+        document.getElementById('ridoy-bandwidth-status').textContent = 'Bandwidth data unavailable';
+      });
+  }
+  refreshBandwidth();
+  window.setInterval(refreshBandwidth, 1000);
+})();
+</script>
+
 </body>
 </html>
