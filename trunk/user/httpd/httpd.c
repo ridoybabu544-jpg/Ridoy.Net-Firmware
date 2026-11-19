@@ -899,7 +899,8 @@ ridoy_portal_router_host(const char *host)
 	if ((lan_ip && *lan_ip && !strcasecmp(name, lan_ip)) ||
 	    (lan_host && *lan_host && !strcasecmp(name, lan_host)) ||
 	    !strcasecmp(name, "router.asus.com") ||
-	    !strcasecmp(name, "www.asusrouter.com"))
+	    !strcasecmp(name, "www.asusrouter.com") ||
+	    !strcasecmp(name, "tplinkwifi.net"))
 		return 1;
 	return 0;
 }
