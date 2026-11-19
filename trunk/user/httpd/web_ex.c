@@ -3412,6 +3412,21 @@ ej_ridoy_portal_status(int eid, webs_t wp, int argc, char **argv)
 }
 
 static int
+ej_ridoy_portal_api(int eid, webs_t wp, int argc, char **argv)
+{
+	const char *mac = get_cgi("ridoy_client_mac");
+	const char *lan_ip = nvram_safe_get("lan_ipaddr");
+	if (ridoy_portal_mac_in_file(RIDOY_PORTAL_ALLOW_FILE, mac)) {
+		websWrite(wp, "{\"captive\":false}\n");
+	} else {
+		websWrite(wp,
+			"{\"captive\":true,\"user-portal-url\":\"http://%s/portal.html\"}\n",
+			lan_ip);
+	}
+	return 0;
+}
+
+static int
 ej_ridoy_portal_pending(int eid, webs_t wp, int argc, char **argv)
 {
 	FILE *fp;
@@ -4275,6 +4290,7 @@ struct mime_handler mime_handlers[] = {
 	/* Ridoy.Net captive portal (public only; firewall controls forwarding) */
 	{ "portal.html", "text/html", no_cache_IE, NULL, do_file, 0 },
 	{ "portal_status.js", "text/javascript", no_cache_IE, NULL, do_ej, 0 },
+	{ "captive-api.json", "application/json", no_cache_IE, NULL, do_ej, 0 },
 	{ "RidoyPortal.asp", "text/html", no_cache_IE, do_html_apply_post, do_ej, 1 },
 	{ "portal_submit.cgi*", "text/html", no_cache_IE, do_html_apply_post, do_ridoy_portal_submit, 0 },
 
@@ -4594,6 +4610,7 @@ struct ej_handler ej_handlers[] =
 	{ "net_iface_list", net_iface_list_hook},
 	{ "net_update_vpnc_wg_state", net_update_vpnc_wg_state_hook},
 	{ "ridoy_portal_status", ej_ridoy_portal_status},
+	{ "ridoy_portal_api", ej_ridoy_portal_api},
 	{ "ridoy_portal_pending", ej_ridoy_portal_pending},
 	{ NULL, NULL }
 };
