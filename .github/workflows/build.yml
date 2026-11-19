@@ -152,7 +152,7 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: Ridoy-Net-TL-WR840N-V6
+          name: Ridoy-Net-TL-WR845N-V4
           path: output/*
           if-no-files-found: error
           retention-days: 7
