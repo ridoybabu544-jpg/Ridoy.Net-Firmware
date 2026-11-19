@@ -43,6 +43,9 @@ jobs:
           grep -Fq 'ej_ridoy_portal_api' user/httpd/web_ex.c
           grep -Fq 'ridoy_portal_apply_firewall' user/rc/firewall_ex.c
           grep -Fq 'captive-api.json' user/rc/services_ex.c
+          grep -Fq 'ridoy_portal_lan_ip' user/httpd/web_ex.c
+          grep -Fq 'application/captive+json' user/httpd/web_ex.c
+          grep -Fq 'ridoyPortalBase' user/www/n56u_ribbon_fixed/portal.html
           test -f user/www/n56u_ribbon_fixed/portal.html
           test -f user/www/n56u_ribbon_fixed/RidoyPortal.asp
           echo "Verified Padavan board profile: TL_WR840N-V6"
