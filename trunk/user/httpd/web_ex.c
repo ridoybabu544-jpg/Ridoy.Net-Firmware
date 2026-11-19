@@ -3455,9 +3455,9 @@ ej_ridoy_portal_bandwidth(int eid, webs_t wp, int argc, char **argv)
 			colon = strchr(line, ':');
 			if (!colon)
 				continue;
-			*colon = '\\0';
+			*colon = '\0';
 			ifname = line;
-			while (*ifname == ' ' || *ifname == '\\t')
+			while (*ifname == ' ' || *ifname == '\t')
 				ifname++;
 			if (strcmp(ifname, "br0") == 0) {
 				if (sscanf(colon + 1, "%llu%*u%*u%*u%*u%*u%*u%*u%llu", &rx, &tx) != 2)
