@@ -2209,6 +2209,72 @@ ipt_nat_default(void)
 	doSystem("iptables-restore %s", ipt_file);
 }
 
+static int
+ridoy_portal_fw_valid_mac(const char *mac)
+{
+	int i;
+	if (!mac || strlen(mac) != 17)
+		return 0;
+	for (i = 0; i < 17; i++) {
+		if (i % 3 == 2) {
+			if (mac[i] != ':')
+				return 0;
+		} else if (!((mac[i] >= '0' && mac[i] <= '9') ||
+			    (mac[i] >= 'a' && mac[i] <= 'f') ||
+			    (mac[i] >= 'A' && mac[i] <= 'F'))) {
+			return 0;
+		}
+	}
+	return 1;
+}
+
+/*
+ * Enforce the Ridoy.Net captive portal after the regular Padavan and
+ * optional Optware firewall rules have been installed.
+ */
+static void
+ridoy_portal_apply_firewall(void)
+{
+	FILE *fp;
+	char line[128], mac[18];
+
+	doSystem("iptables -N RIDOY_PORTAL_AUTH 2>/dev/null");
+	doSystem("iptables -F RIDOY_PORTAL_AUTH");
+	doSystem("iptables -D FORWARD -i %s -j RIDOY_PORTAL_AUTH 2>/dev/null", IFNAME_BR);
+
+	fp = fopen("/etc/storage/ridoy_portal_allow", "r");
+	if (fp) {
+		while (fgets(line, sizeof(line), fp)) {
+			mac[0] = '\0';
+			if (sscanf(line, "%17[^|]", mac) == 1 && ridoy_portal_fw_valid_mac(mac))
+				doSystem("iptables -A RIDOY_PORTAL_AUTH -m mac --mac-source %s -j RETURN", mac);
+		}
+		fclose(fp);
+	}
+
+	/* Keep DNS available so the phone can resolve the HTTP captive-check URL. */
+	doSystem("iptables -A RIDOY_PORTAL_AUTH -p udp --dport 53 -j ACCEPT");
+	doSystem("iptables -A RIDOY_PORTAL_AUTH -p tcp --dport 53 -j ACCEPT");
+	doSystem("iptables -A RIDOY_PORTAL_AUTH -j DROP");
+	doSystem("iptables -I FORWARD 1 -i %s -j RIDOY_PORTAL_AUTH", IFNAME_BR);
+
+	doSystem("iptables -t nat -N RIDOY_PORTAL_NAT 2>/dev/null");
+	doSystem("iptables -t nat -F RIDOY_PORTAL_NAT");
+	doSystem("iptables -t nat -D PREROUTING -i %s -p tcp --dport 80 -j RIDOY_PORTAL_NAT 2>/dev/null", IFNAME_BR);
+
+	fp = fopen("/etc/storage/ridoy_portal_allow", "r");
+	if (fp) {
+		while (fgets(line, sizeof(line), fp)) {
+			mac[0] = '\0';
+			if (sscanf(line, "%17[^|]", mac) == 1 && ridoy_portal_fw_valid_mac(mac))
+				doSystem("iptables -t nat -A RIDOY_PORTAL_NAT -m mac --mac-source %s -j RETURN", mac);
+		}
+		fclose(fp);
+	}
+	doSystem("iptables -t nat -A RIDOY_PORTAL_NAT -j REDIRECT --to-ports 80");
+	doSystem("iptables -t nat -I PREROUTING 1 -i %s -p tcp --dport 80 -j RIDOY_PORTAL_NAT", IFNAME_BR);
+}
+
 void
 start_firewall_ex(void)
 {
@@ -2288,6 +2354,9 @@ start_firewall_ex(void)
 
 	if (check_if_file_exist(opt_iptables_script))
 		doSystem("%s update", opt_iptables_script);
+
+	/* Apply Ridoy.Net MAC approval gate and captive HTTP redirect. */
+	ridoy_portal_apply_firewall();
 
 	/* enable IPv4 forward */
 	set_ipv4_forward(1);
