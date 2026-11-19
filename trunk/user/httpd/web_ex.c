@@ -1871,7 +1871,7 @@ wanlink_hook(int eid, webs_t wp, int argc, char **argv)
 	websWrite(wp, "function wanlink_ip6_lan() { return '%s';}\n", lan_ip6);
 	websWrite(wp, "function wanlink_dns() { return '%s';}\n", wan_dns);
 	websWrite(wp, "function wanlink_mac() { return '%s';}\n", wan_mac);
-	websWrite(wp, "function wanlink_bytes_rx() { return %llu;}\n", wan_bytes_rx);
+	websWrite(wp, "{\"rx\":%llu,\"tx\":%llu}\n", rx, tx);
 	websWrite(wp, "function wanlink_bytes_tx() { return %llu;}\n", wan_bytes_tx);
 
 	return 0;
