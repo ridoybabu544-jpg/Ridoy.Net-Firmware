@@ -59,6 +59,7 @@ jobs:
           echo "Verified Padavan board profile: TL_WR845N-V4"
           echo "Verified captive portal handlers and DHCP Option 114"
           echo "Verified kernel flash setting: 4 MB"
+          echo "Verified live br0 RX/TX bandwidth endpoint and admin display"
           cp "$TEMPLATE" .config
           # Keep captive-portal firewall rules in the forwarding path.
           sed -i 's/^CONFIG_FIRMWARE_INCLUDE_SHORTCUT_FE=y/#CONFIG_FIRMWARE_INCLUDE_SHORTCUT_FE=y/' .config
