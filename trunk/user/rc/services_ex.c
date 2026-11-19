@@ -443,6 +443,9 @@ start_dns_dhcpd(int is_ap_mode)
 		if (strlen(dns_all) > 0)
 			fprintf(fp, "dhcp-option=tag:%s,%d,%s\n", DHCPD_RANGE_DEF_TAG, 6, dns_all);
 
+		/* RFC 8910: tell compatible clients where the captive portal API lives. */
+		fprintf(fp, "dhcp-option=tag:%s,114,\\"http://%s/captive-api.json\\"\\n", DHCPD_RANGE_DEF_TAG, ipaddr);
+
 		/* DOMAIN search */
 		if (strlen(domain) > 0)
 			fprintf(fp, "dhcp-option=tag:%s,%d,%s\n", DHCPD_RANGE_DEF_TAG, 15, domain);
