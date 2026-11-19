@@ -2273,6 +2273,24 @@ ridoy_portal_apply_firewall(void)
 	}
 	doSystem("iptables -t nat -A RIDOY_PORTAL_NAT -j REDIRECT --to-ports 80");
 	doSystem("iptables -t nat -I PREROUTING 1 -i %s -p tcp --dport 80 -j RIDOY_PORTAL_NAT", IFNAME_BR);
+
+	/* IPv6 forwarding must obey the same MAC approval list. */
+	doSystem("ip6tables -N RIDOY_PORTAL_AUTH6 2>/dev/null");
+	doSystem("ip6tables -F RIDOY_PORTAL_AUTH6");
+	doSystem("ip6tables -D FORWARD -i %s -j RIDOY_PORTAL_AUTH6 2>/dev/null", IFNAME_BR);
+	fp = fopen("/etc/storage/ridoy_portal_allow", "r");
+	if (fp) {
+		while (fgets(line, sizeof(line), fp)) {
+			mac[0] = '\0';
+			if (sscanf(line, "%17[^|]", mac) == 1 && ridoy_portal_fw_valid_mac(mac))
+				doSystem("ip6tables -A RIDOY_PORTAL_AUTH6 -m mac --mac-source %s -j RETURN", mac);
+		}
+		fclose(fp);
+	}
+	doSystem("ip6tables -A RIDOY_PORTAL_AUTH6 -p udp --dport 53 -j ACCEPT");
+	doSystem("ip6tables -A RIDOY_PORTAL_AUTH6 -p tcp --dport 53 -j ACCEPT");
+	doSystem("ip6tables -A RIDOY_PORTAL_AUTH6 -j DROP");
+	doSystem("ip6tables -I FORWARD 1 -i %s -j RIDOY_PORTAL_AUTH6", IFNAME_BR);
 }
 
 void
